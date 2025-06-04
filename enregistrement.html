@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enregistrement Audio - Audio Collection App</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="header">
+        <h1><i class="fas fa-music"></i>Audio Collection App</h1>
+    </div>
+
+    <div class="main-container">
+        <div class="instruction">
+            <h2>Lecture et Enregistrement</h2>
+            <p>Lisez le texte ci-dessous à voix haute et enregistrez-vous. Le fichier sera téléchargé sur votre appareil.</p>
+        </div>
+
+        <div class="text-to-read">
+            <p>
+                Lorem ipsum dolor sit amet, consectetur adipiscing elit. 
+                Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. 
+                Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris 
+                nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in 
+                reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
+            </p>
+        </div>
+
+        <div class="recording-section">
+            <button class="record-button" id="recordButton" onclick="toggleRecording()">
+                <i class="fas fa-microphone" id="recordIcon"></i>
+            </button>
+            
+            <div class="recording-status" id="recordingStatus">Appuyez pour commencer l'enregistrement</div>
+            
+            <div class="timer" id="timer">00:00</div>
+            
+            <div class="controls">
+                <button class="btn btn-secondary" id="resetButton" onclick="resetRecording()" disabled>
+                    <i class="fas fa-redo"></i> Recommencer
+                </button>
+                <button class="btn btn-primary" id="playButton" onclick="playRecording()" disabled>
+                    <i class="fas fa-play"></i> Écouter
+                </button>
+                <button class="btn btn-success" id="downloadButton" onclick="downloadRecording()" disabled>
+                    <i class="fas fa-download"></i> Télécharger
+                </button>
+            </div>
+
+            <div class="audio-preview" id="audioPreview">
+                <h3><i class="fas fa-headphones"></i> Aperçu de votre enregistrement</h3>
+                <audio controls id="audioPlayer"></audio>
+                <div class="audio-info">
+                    <span id="audioSize">Taille: --</span>
+                    <span id="audioDuration">Durée: --</span>
+                    <span id="audioFormat">Format: WAV</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="navigation">
+            <a href="#" class="back-button" onclick="goBack()">
+                <i class="fas fa-arrow-left"></i>
+                Retour
+            </a>
+            <span style="color: #6b7280; font-size: 0.9rem;">Enregistrement local</span>
+        </div>
+    </div>
+
+    <script>
+        let isRecording = false;
+        let mediaRecorder;
+        let audioChunks = [];
+        let recordingTimer;
+        let startTime;
+        let recordedBlob = null;
+        let audioURL = null;
+
+        function toggleRecording() {
+            if (!isRecording) {
+                startRecording();
+            } else {
+                stopRecording();
+            }
+        }
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        sampleRate: 44100
+                    }
+                });
+                
+                mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: 'audio/webm;codecs=opus'
+                });
+                
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = event => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = () => {
+                    recordedBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    createAudioPreview();
+                    enableControls();
+                };
+
+                mediaRecorder.start(100); // Collecter les données toutes les 100ms
+                isRecording = true;
+
+                // Update UI
+                updateRecordingUI(true);
+
+                // Start timer
+                startTime = Date.now();
+                recordingTimer = setInterval(updateTimer, 100);
+
+            } catch (error) {
+                console.error('Erreur lors de l\'accès au microphone:', error);
+                showError('Impossible d\'accéder au microphone. Veuillez vérifier les permissions.');
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                isRecording = false;
+
+                // Update UI
+                updateRecordingUI(false);
+
+                // Stop timer
+                clearInterval(recordingTimer);
+            }
+        }
+
+        function updateRecordingUI(recording) {
+            const button = document.getElementById('recordButton');
+            const status = document.getElementById('recordingStatus');
+            const icon = document.getElementById('recordIcon');
+
+            if (recording) {
+                button.classList.add('recording');
+                status.textContent = 'Enregistrement en cours...';
+                status.classList.add('recording');
+                icon.className = 'fas fa-stop';
+                document.getElementById('resetButton').disabled = false;
+            } else {
+                button.classList.remove('recording');
+                status.textContent = 'Enregistrement terminé';
+                status.classList.remove('recording');
+                icon.className = 'fas fa-microphone';
+            }
+        }
+
+        function updateTimer() {
+            const elapsed = Date.now() - startTime;
+            const totalSeconds = Math.floor(elapsed / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            
+            const timerDisplay = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            document.getElementById('timer').textContent = timerDisplay;
+        }
+
+        function createAudioPreview() {
+            if (recordedBlob) {
+                // Nettoyer l'URL précédente si elle existe
+                if (audioURL) {
+                    URL.revokeObjectURL(audioURL);
+                }
+                
+                audioURL = URL.createObjectURL(recordedBlob);
+                const audioPlayer = document.getElementById('audioPlayer');
+                audioPlayer.src = audioURL;
+                
+                // Afficher les informations du fichier
+                updateAudioInfo();
+                
+                // Afficher la prévisualisation
+                document.getElementById('audioPreview').classList.add('show');
+            }
+        }
+
+        function updateAudioInfo() {
+            if (recordedBlob) {
+                // Taille du fichier
+                const sizeInMB = (recordedBlob.size / (1024 * 1024)).toFixed(2);
+                const sizeInKB = (recordedBlob.size / 1024).toFixed(1);
+                const sizeText = recordedBlob.size > 1024 * 1024 ? `${sizeInMB} MB` : `${sizeInKB} KB`;
+                document.getElementById('audioSize').textContent = `Taille: ${sizeText}`;
+                
+                // Durée (sera mise à jour quand l'audio sera chargé)
+                const audioPlayer = document.getElementById('audioPlayer');
+                audioPlayer.addEventListener('loadedmetadata', () => {
+                    const duration = Math.round(audioPlayer.duration);
+                    const minutes = Math.floor(duration / 60);
+                    const seconds = duration % 60;
+                    document.getElementById('audioDuration').textContent = 
+                        `Durée: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+                });
+            }
+        }
+
+        function enableControls() {
+            document.getElementById('playButton').disabled = false;
+            document.getElementById('downloadButton').disabled = false;
+        }
+
+        function resetRecording() {
+            if (isRecording) {
+                stopRecording();
+            }
+            
+            // Nettoyer l'URL audio
+            if (audioURL) {
+                URL.revokeObjectURL(audioURL);
+                audioURL = null;
+            }
+            
+            // Reset UI
+            document.getElementById('recordingStatus').textContent = 'Appuyez pour commencer l\'enregistrement';
+            document.getElementById('timer').textContent = '00:00';
+            document.getElementById('playButton').disabled = true;
+            document.getElementById('downloadButton').disabled = true;
+            document.getElementById('resetButton').disabled = true;
+            document.getElementById('audioPreview').classList.remove('show');
+            
+            recordedBlob = null;
+            audioChunks = [];
+        }
+
+        function playRecording() {
+            if (recordedBlob) {
+                const audioPlayer = document.getElementById('audioPlayer');
+                if (audioPlayer.paused) {
+                    audioPlayer.play();
+                    document.getElementById('playButton').innerHTML = '<i class="fas fa-pause"></i> Pause';
+                } else {
+                    audioPlayer.pause();
+                    document.getElementById('playButton').innerHTML = '<i class="fas fa-play"></i> Écouter';
+                }
+                
+                audioPlayer.addEventListener('ended', () => {
+                    document.getElementById('playButton').innerHTML = '<i class="fas fa-play"></i> Écouter';
+                });
+            }
+        }
+
+        function downloadRecording() {
+            if (recordedBlob) {
+                // Créer un nom de fichier avec timestamp
+                const now = new Date();
+                const timestamp = now.toISOString().slice(0, 19).replace(/:/g, '-');
+                const filename = `enregistrement_${timestamp}.wav`;
+                
+                // Créer le lien de téléchargement
+                const downloadLink = document.createElement('a');
+                downloadLink.href = audioURL;
+                downloadLink.download = filename;
+                
+                // Simuler un clic pour déclencher le téléchargement
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+                
+                // Afficher une confirmation
+                showSuccess(`Fichier téléchargé: ${filename}`);
+            }
+        }
+
+        function showError(message) {
+            // Créer une notification d'erreur
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #ef4444;
+                color: white;
+                padding: 15px 20px;
+                border-radius: 10px;
+                box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+                z-index: 1000;
+                animation: slideIn 0.3s ease-out;
+            `;
+            notification.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${message}`;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 5000);
+        }
+
+        function showSuccess(message) {
+            // Créer une notification de succès
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #10b981;
+                color: white;
+                padding: 15px 20px;
+                border-radius: 10px;
+                box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+                z-index: 1000;
+                animation: slideIn 0.3s ease-out;
+            `;
+            notification.innerHTML = `<i class="fas fa-check-circle"></i> ${message}`;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        function goBack() {
+            if (recordedBlob && confirm('Êtes-vous sûr de vouloir revenir en arrière ? L\'enregistrement sera perdu.')) {
+                if (audioURL) {
+                    URL.revokeObjectURL(audioURL);
+                }
+                window.history.back();
+            } else if (!recordedBlob) {
+                window.history.back();
+            }
+        }
+
+        // Ajouter les styles pour les animations des notifications
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from {
+                    opacity: 0;
+                    transform: translateX(100%);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateX(0);
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
