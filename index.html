@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Collection App</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="header">
+        <h1><i class="fas fa-music"></i>Audio Collection App</h1>
+    </div>
+
+    <div class="main-container">
+        <form>
+            <div class="form-group">
+                <label>Genre :</label>
+                <div class="checkbox-group">
+                    <div class="checkbox-item">
+                        <input type="radio" id="masculin" name="genre" value="M">
+                        <label for="masculin">M</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="radio" id="feminin" name="genre" value="F">
+                        <label for="feminin">F</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="age">Âge :</label>
+                <input type="number" id="age" name="age" class="input-zone" placeholder="Entrez votre âge" min="1" max="120">
+            </div>
+
+            <button type="submit" class="btn-commencer">
+                <a href="enregistrement.html">Commencer</a>
+                <i class="fas fa-play"></i>
+            </button>
+        </form>
+    </div>
+</body>
+</html>
